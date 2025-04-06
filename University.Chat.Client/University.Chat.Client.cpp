@@ -16,7 +16,7 @@ DWORD WINAPI ClientSendThread(LPVOID lpParam)
         if (hPipe == INVALID_HANDLE_VALUE)
         {
             DWORD tmp = GetLastError();
-            LogStringCreator(L"Не удалось подключиться к серверу. GLE=%d\n", (const wchar_t*)tmp);
+            LogStringCreator(L"Не удалось подключиться к серверу. E%d\n", (const wchar_t*)tmp);
 
             // Если сервер завершился - выходим
             if (tmp == ERROR_FILE_NOT_FOUND || tmp == ERROR_PIPE_BUSY)
@@ -31,7 +31,7 @@ DWORD WINAPI ClientSendThread(LPVOID lpParam)
         //hEvent = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, L"Global\\ExclusiveModeEvent");
         hMutex = OpenMutex(SYNCHRONIZE, FALSE, L"Global\\ExclusiveAccessMutex");
         if (hMutex == NULL) {
-            LogStringCreator(L"Ошибка при открытии мьютекса: GLE=%d\n", (const wchar_t*)GetLastError());
+            LogStringCreator(L"Ошибка при открытии мьютекса: E%d\n", (const wchar_t*)GetLastError());
             Sleep(TIME_QUANT);
             continue;
         }
@@ -41,7 +41,7 @@ DWORD WINAPI ClientSendThread(LPVOID lpParam)
         if (!SetNamedPipeHandleState(hPipe, &dwMode, NULL, NULL))
         {
             DWORD tmp = GetLastError();
-            LogStringCreator(L"SetNamedPipeHandleState failed. GLE=%d\n", (const wchar_t*)tmp);
+            LogStringCreator(L"SetNamedPipeHandleState failed. E%d\n", (const wchar_t*)tmp);
             CloseHandle(hPipe);
             Sleep(5000);
             continue;
@@ -77,10 +77,10 @@ void MessageCicleElement(HANDLE hPipe) {
     if (!WriteFile(hPipe, message, cbToWrite, &cbWritten, NULL))
     {
         DWORD tmp = GetLastError();
-        LogStringCreator(L"Ошибка WriteFile. GLE=%d\n", (const wchar_t*)tmp);
+        LogStringCreator(L"Ошибка WriteFile. E%d\n", (const wchar_t*)tmp);
         if (tmp == ERROR_BROKEN_PIPE)
         {
-            LogStringCreator(L"Сервер отключился. GLE=%d\n", (const wchar_t*)tmp);
+            LogStringCreator(L"Сервер отключился. E%d\n", (const wchar_t*)tmp);
         }
         Sleep(TIME_QUANT);
         stopClientThread = true;
@@ -93,10 +93,10 @@ void MessageCicleElement(HANDLE hPipe) {
     if (!fSuccess)
     {
         DWORD tmp = GetLastError();
-        LogStringCreator(L"Ошибка ReadFile. GLE=%d\n", (const wchar_t*)tmp);
+        LogStringCreator(L"Ошибка ReadFile. E%d\n", (const wchar_t*)tmp);
         if (tmp == ERROR_BROKEN_PIPE)
         {
-            LogStringCreator(L"Сервер отключился. GLE=%d\n", (const wchar_t*)tmp);
+            LogStringCreator(L"Сервер отключился. E%d\n", (const wchar_t*)tmp);
         }
         Sleep(TIME_QUANT);
         stopClientThread = true;
@@ -309,29 +309,41 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 void OnCreate(HWND hWnd, LPARAM lParam, HFONT hFont) {
     InitCommonControls();
 
-    hButtonConnect = CreateWindow(L"BUTTON", L"Подключиться к серверу",
-        WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | BS_MULTILINE,
-        10, 10, 150, 40, hWnd, (HMENU)IDC_BTN_CONNECT, hInst, NULL);
+    // Устанавливаем фон окна
+    HBRUSH hBrushBackground = CreateSolidBrush(RGB(240, 240, 240));
+    SetClassLongPtr(hWnd, GCLP_HBRBACKGROUND, (LONG_PTR)hBrushBackground);
 
-    hButtonDisconnect = CreateWindow(L"BUTTON", L"Отключиться от сервера",
-        WS_CHILD | WS_VISIBLE | WS_DISABLED | BS_DEFPUSHBUTTON | BS_MULTILINE,
-        170, 10, 150, 40, hWnd, (HMENU)IDC_BTN_DISCONNECT, hInst, NULL);
+    // Создаем кисть для кнопок
+    HBRUSH hButtonBrush = CreateSolidBrush(RGB(200, 230, 255));
 
-    HWND hLabel = CreateWindowEx(NULL, L"STATIC", L"Отправляемое сообщение", WS_CHILD | WS_VISIBLE,
-        10, 50 + BASIC_MARGIN, 200, 20, hWnd, (HMENU)301, hInst, NULL);
+    // Кнопка "Подключиться"
+    hButtonConnect = CreateWindow(L"BUTTON", L"Подключиться",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        10, 300, 180, 50, hWnd, (HMENU)IDC_BTN_CONNECT, hInst, NULL);
+    SendMessage(hButtonConnect, WM_CTLCOLORBTN, (WPARAM)hButtonBrush, 0);
 
-    hEditMsg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"1",
-        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_MULTILINE,
-        10, 80 + BASIC_MARGIN, 300, 25, hWnd, (HMENU)IDC_EDIT_MSG, hInst, NULL);
+    // Кнопка "Отключиться"
+    hButtonDisconnect = CreateWindow(L"BUTTON", L"Отключиться",
+        WS_CHILD | WS_VISIBLE | WS_DISABLED | BS_PUSHBUTTON,
+        200, 300, 180, 50, hWnd, (HMENU)IDC_BTN_DISCONNECT, hInst, NULL);
+    SendMessage(hButtonDisconnect, WM_CTLCOLORBTN, (WPARAM)hButtonBrush, 0);
 
-    hChkMonopoly = CreateWindow(L"BUTTON", L"Монопольный режим доступа",
-        WS_CHILD | WS_VISIBLE | BS_CHECKBOX | BS_MULTILINE,
-        10, 120, 200, 30, hWnd, (HMENU)IDC_MNPLY_CHECK, hInst, NULL);
-
-    hButtonExit = CreateWindow(L"BUTTON", L"Выход",
+    // Метка для отправляемого сообщения
+    HWND hLabel = CreateWindowEx(NULL, L"STATIC", L"Введите сообщение:",
         WS_CHILD | WS_VISIBLE,
-        240, 120, 100, 30, hWnd, (HMENU)IDC_BTN_EXIT, hInst, NULL);
+        10, 10, 300, 25, hWnd, (HMENU)301, hInst, NULL);
 
+    // Поле ввода сообщения
+    hEditMsg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"",
+        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_MULTILINE,
+        10, 40, 495, 30, hWnd, (HMENU)IDC_EDIT_MSG, hInst, NULL);
+
+    // Чекбокс "Монопольный режим"
+    hChkMonopoly = CreateWindow(L"BUTTON", L"Монопольный режим",
+        WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+        10, 80, 200, 30, hWnd, (HMENU)IDC_MNPLY_CHECK, hInst, NULL);
+
+    // Поле журнала событий (увеличено)
     RECT rc;
     GetClientRect(hWnd, &rc);
     int clientWidth = rc.right;
@@ -339,8 +351,15 @@ void OnCreate(HWND hWnd, LPARAM lParam, HFONT hFont) {
 
     hEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL,
-        10, 160, 370, clientWidth - BASIC_MARGIN * 5 - 160, hWnd, (HMENU)IDC_EDIT, hInst, NULL);
+        10, 120, clientWidth - 20, 160, hWnd, (HMENU)IDC_EDIT, hInst, NULL);
 
+    // Кнопка выхода
+    hButtonExit = CreateWindow(L"BUTTON", L"Выход",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        clientWidth - 130, 300, 120, 50, hWnd, (HMENU)IDC_BTN_EXIT, hInst, NULL);
+    SendMessage(hButtonExit, WM_CTLCOLORBTN, (WPARAM)hButtonBrush, 0);
+
+    // Установка шрифта
     if (hEdit == NULL)
         MessageBox(hWnd, L"Не удалось создать элемент управления.", L"Ошибка", MB_ICONERROR);
     else {
@@ -349,6 +368,121 @@ void OnCreate(HWND hWnd, LPARAM lParam, HFONT hFont) {
     }
 }
 
+
+//void OnCreate(HWND hWnd, LPARAM lParam, HFONT hFont) {
+//    InitCommonControls();
+//
+//    // Constants for layout
+//    const int buttonWidth = 180;
+//    const int buttonHeight = 40;
+//    const int margin = 15;
+//    const int controlHeight = 25;
+//    const int checkboxWidth = 220;
+//    const int exitButtonWidth = 100;
+//
+//    // Get client area dimensions
+//    RECT rc;
+//    GetClientRect(hWnd, &rc);
+//    int clientWidth = rc.right;
+//    int clientHeight = rc.bottom;
+//
+//    // Top row buttons (connect/disconnect)
+//    hButtonConnect = CreateWindow(L"BUTTON", L"Подключиться",
+//        WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | BS_MULTILINE,
+//        margin, margin, buttonWidth, buttonHeight,
+//        hWnd, (HMENU)IDC_BTN_CONNECT, hInst, NULL);
+//
+//    hButtonDisconnect = CreateWindow(L"BUTTON", L"Отключиться",
+//        WS_CHILD | WS_VISIBLE | WS_DISABLED | BS_DEFPUSHBUTTON | BS_MULTILINE,
+//        margin * 2 + buttonWidth, margin, buttonWidth, buttonHeight,
+//        hWnd, (HMENU)IDC_BTN_DISCONNECT, hInst, NULL);
+//
+//    // Message controls
+//    HWND hLabel = CreateWindowEx(NULL, L"STATIC", L"Отправляемое сообщение",
+//        WS_CHILD | WS_VISIBLE,
+//        margin, margin * 2 + buttonHeight, clientWidth - margin * 2, controlHeight,
+//        hWnd, (HMENU)301, hInst, NULL);
+//
+//    hEditMsg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"1",
+//        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_MULTILINE,
+//        margin, margin * 3 + buttonHeight + controlHeight,
+//        clientWidth - margin * 2, controlHeight * 2,
+//        hWnd, (HMENU)IDC_EDIT_MSG, hInst, NULL);
+//
+//    // Bottom controls row
+//    int bottomControlsY = margin * 4 + buttonHeight + controlHeight * 3;
+//
+//    hChkMonopoly = CreateWindow(L"BUTTON", L"Монопольный режим доступа",
+//        WS_CHILD | WS_VISIBLE | BS_CHECKBOX | BS_MULTILINE,
+//        margin, bottomControlsY, checkboxWidth, controlHeight * 2,
+//        hWnd, (HMENU)IDC_MNPLY_CHECK, hInst, NULL);
+//
+//    hButtonExit = CreateWindow(L"BUTTON", L"Выход",
+//        WS_CHILD | WS_VISIBLE,
+//        clientWidth - margin - exitButtonWidth, bottomControlsY,
+//        exitButtonWidth, controlHeight * 2,
+//        hWnd, (HMENU)IDC_BTN_EXIT, hInst, NULL);
+//
+//    // Main edit control (log area)
+//    hEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"",
+//        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+//        margin, bottomControlsY + controlHeight * 2 + margin,
+//        clientWidth - margin * 2,
+//        clientHeight - (bottomControlsY + controlHeight * 2 + margin * 2),
+//        hWnd, (HMENU)IDC_EDIT, hInst, NULL);
+//
+//    if (hEdit == NULL) {
+//        MessageBox(hWnd, L"Не удалось создать элемент управления.", L"Ошибка", MB_ICONERROR);
+//    }
+//    else {
+//        hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+//        SendMessageW(hEdit, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+//    }
+//}
+
+//void OnCreate(HWND hWnd, LPARAM lParam, HFONT hFont) {
+//    InitCommonControls();
+//
+//    hButtonConnect = CreateWindow(L"BUTTON", L"Подключиться к серверу",
+//        WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON | BS_MULTILINE,
+//        10, 10, 150, 40, hWnd, (HMENU)IDC_BTN_CONNECT, hInst, NULL);
+//
+//    hButtonDisconnect = CreateWindow(L"BUTTON", L"Отключиться от сервера",
+//        WS_CHILD | WS_VISIBLE | WS_DISABLED | BS_DEFPUSHBUTTON | BS_MULTILINE,
+//        170, 10, 150, 40, hWnd, (HMENU)IDC_BTN_DISCONNECT, hInst, NULL);
+//
+//    HWND hLabel = CreateWindowEx(NULL, L"STATIC", L"Отправляемое сообщение", WS_CHILD | WS_VISIBLE,
+//        10, 50 + BASIC_MARGIN, 200, 20, hWnd, (HMENU)301, hInst, NULL);
+//
+//    hEditMsg = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"1",
+//        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_MULTILINE,
+//        10, 80 + BASIC_MARGIN, 300, 25, hWnd, (HMENU)IDC_EDIT_MSG, hInst, NULL);
+//
+//    hChkMonopoly = CreateWindow(L"BUTTON", L"Монопольный режим доступа",
+//        WS_CHILD | WS_VISIBLE | BS_CHECKBOX | BS_MULTILINE,
+//        10, 120, 200, 30, hWnd, (HMENU)IDC_MNPLY_CHECK, hInst, NULL);
+//
+//    hButtonExit = CreateWindow(L"BUTTON", L"Выход",
+//        WS_CHILD | WS_VISIBLE,
+//        240, 120, 100, 30, hWnd, (HMENU)IDC_BTN_EXIT, hInst, NULL);
+//
+//    RECT rc;
+//    GetClientRect(hWnd, &rc);
+//    int clientWidth = rc.right;
+//    int clientHeight = rc.bottom;
+//
+//    hEdit = CreateWindowEx(WS_EX_CLIENTEDGE, L"EDIT", L"",
+//        WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL,
+//        10, 160, 370, clientWidth - BASIC_MARGIN * 5 - 160, hWnd, (HMENU)IDC_EDIT, hInst, NULL);
+//
+//    if (hEdit == NULL)
+//        MessageBox(hWnd, L"Не удалось создать элемент управления.", L"Ошибка", MB_ICONERROR);
+//    else {
+//        hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+//        SendMessageW(hEdit, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+//    }
+//}
+
 void OnConnect() {
     if (hClientThread == NULL || hClientThread == INVALID_HANDLE_VALUE) {
         stopClientThread = false;
@@ -356,7 +490,7 @@ void OnConnect() {
         hClientThread = CreateThread(NULL, 0, ClientSendThread, NULL, 0, NULL);
 
         if (hClientThread) {
-            PrintMessage(L"Клиент запущен.\r\n");
+            PrintMessage(L"Подключения клиента.\r\n");
             EnableWindow(hButtonConnect, FALSE);
             EnableWindow(hButtonDisconnect, TRUE);
         }
@@ -373,10 +507,10 @@ void OnDisconnect() {
         EnableWindow(hButtonDisconnect, FALSE);
         if (CloseHandle(hClientThread)) {
             hClientThread = NULL;
-            PrintMessage(L"Клиент остановлен.\r\n");
+            PrintMessage(L"Клиент отключился.\r\n");
         }
         else
-            PrintMessage(L"Не удалось остановить клиент.\r\n");
+            PrintMessage(L"Клиенту не удалось отключиться.\r\n");
     }
 }
 

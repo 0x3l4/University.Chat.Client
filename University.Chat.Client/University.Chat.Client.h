@@ -7,8 +7,8 @@
 #define TIME_QUANT 5000
 #define BUFSIZE 512
 #define BASIC_MARGIN 10
-#define WINDOW_X 400
-#define WINDOW_Y 400
+#define WINDOW_X 535
+#define WINDOW_Y 430
 
 enum {
 	IDC_EDIT = 201,
